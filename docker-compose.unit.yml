@@ -1,0 +1,18 @@
+services:
+  node-unit-test:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.unit
+    container_name: node-unit-test
+    environment:
+      - NODE_ENV=test
+      - JWT_SECRET=unittestsecret
+      - JWT_EXPIRES_IN=1h
+    volumes:
+      - ./coverage:/app/coverage
+      - ./server:/app
+    command: sh -c "npm install --include=dev && npm run test:unit"
+
+networks:
+  default:
+    driver: bridge

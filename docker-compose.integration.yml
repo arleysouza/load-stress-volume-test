@@ -1,0 +1,41 @@
+services:
+  postgres-integration-test:
+    image: postgres:17-alpine
+    container_name: postgres-integration-test
+    restart: on-failure:5 # política de reinício com limite de 5 tentativas
+    env_file:
+      - ./.env.integration
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - integration-network
+
+  redis-integration-test:
+    image: redis:8-alpine
+    container_name: redis-integration-test
+    restart: on-failure:5
+    env_file:
+      - ./.env.integration
+    networks:
+      - integration-network
+
+  node-integration-test:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.integration
+    container_name: node-integration-test
+    env_file:
+      - ./.env.integration
+    depends_on:
+      - postgres-integration-test
+      - redis-integration-test
+    networks:
+      - integration-network
+    volumes:
+      - ./coverage:/app/coverage
+
+networks:
+  integration-network:
+    driver: bridge

@@ -1,0 +1,67 @@
+services:
+  postgres-app:
+    image: postgres:17-alpine
+    container_name: postgres-app
+    restart: on-failure:5 # política de reinício com limite de 5 tentativas
+    env_file:
+      - ./.env.production
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_app_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - app-network
+
+  redis-app:
+    image: redis:8-alpine
+    container_name: redis-app
+    restart: on-failure:5
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    env_file:
+      - ./.env.production
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_app_data:/data
+    networks:
+      - app-network
+
+  node-app:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.production
+    container_name: node-app
+    restart: on-failure:5
+    ports:
+      - "${SERVER_HOST_PORT}:3000"
+    env_file:
+      - ./.env.production
+    depends_on:
+      - postgres-app
+      - redis-app
+    networks:
+      - app-network
+
+  front-app:
+    build:
+      context: ./front
+      dockerfile: Dockerfile.production
+    container_name: front-app
+    restart: on-failure:5
+    env_file:
+      - ./.env.production
+    ports:
+      - "${FRONT_HOST_PORT}:80" # 3003 (externo) → 80 (nginx interno)
+    networks:
+      - app-network
+    depends_on:
+      - node-app
+
+volumes:
+  postgres_app_data:
+  redis_app_data:
+
+networks:
+  app-network:
+    driver: bridge

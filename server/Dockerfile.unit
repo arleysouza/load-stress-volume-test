@@ -1,0 +1,17 @@
+FROM node:22-alpine
+
+# Definir diretório de trabalho
+WORKDIR /app
+
+# Copiar package.json e package-lock.json
+COPY package*.json ./
+
+# Instala as devDependencies se NODE_ENV não é production
+RUN npm ci
+
+# Copiar o restante do código
+COPY . .
+
+# importante para gerar relatórios de cobertura dentro de /app/coverage
+VOLUME ["/app/coverage"]
+
