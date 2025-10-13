@@ -1,0 +1,79 @@
+services:
+  postgres-k6:
+    image: postgres:17-alpine
+    container_name: postgres-k6
+    restart: on-failure:5
+    env_file:
+      - ./.env.k6.server
+    tmpfs:
+      - /var/lib/postgresql/data
+    volumes:
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - k6-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+
+  redis-k6:
+    image: redis:8-alpine
+    container_name: redis-k6
+    restart: on-failure:5
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\""]
+    env_file:
+      - ./.env.k6.server
+    networks:
+      - k6-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "$$REDIS_PASSWORD", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 2s
+
+  node-k6:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.e2e.server
+    container_name: node-k6
+    restart: on-failure:5
+    env_file:
+      - ./.env.k6.server
+    depends_on:
+      postgres-k6:
+        condition: service_healthy
+      redis-k6:
+        condition: service_healthy
+    networks:
+      - k6-network
+    command: sh -c "node dist/index.js"
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 10s
+
+  k6-load:
+    image: grafana/k6:latest
+    container_name: k6-load
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results:/results
+    # Usa variável de ambiente K6_SCRIPT para escolher o cenário (default: load-mix.js)
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/${K6_SCRIPT:-load-mix.js}"]
+
+networks:
+  k6-network:
+    driver: bridge

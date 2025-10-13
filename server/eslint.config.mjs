@@ -51,6 +51,21 @@ export default tseslint.config(
     },
   },
 
+  // Configuração específica para scripts k6 (reconhece globais __ENV e __VU)
+  {
+    files: ["tests/k6/**/*.js"],
+    languageOptions: {
+      globals: {
+        __ENV: "readonly",
+        __VU: "readonly",
+      },
+    },
+    rules: {
+      // __ENV e __VU são globais do runtime k6
+      "no-undef": "off",
+    },
+  },
+
   // Configuração adicional para outros tipos de arquivo TypeScript
   {
     files: ["**/*.mts", "**/*.cts"],

@@ -262,3 +262,47 @@ flowchart TD
     D --> M[Upload Playwright HTML Report]
 ```
 
+---
+
+### ⚡ Testes de Carga/Estresse/Volume (k6)
+
+Os testes de performance com k6 rodam em ambiente isolado, separados dos testes unitários/integração/E2E.
+
+- Compose dedicado: `docker-compose.k6.yml`
+- Variáveis de ambiente: `.env.k6.server`
+- Scripts k6: `server/tests/k6/*.js`
+
+Como executar (padrão: load-mix)
+```bash
+# Sobe Postgres/Redis/API e executa o script k6
+docker compose --env-file .env.k6.server -f docker-compose.k6.yml up --build --abort-on-container-exit --exit-code-from k6-load
+
+# Encerrar/remover tudo
+docker compose -f docker-compose.k6.yml down -v
+```
+
+Escolher cenários (via variável K6_SCRIPT)
+```bash
+# Ex.: stress
+K6_SCRIPT=stress.js docker compose --env-file .env.k6.server -f docker-compose.k6.yml \
+  up --build --abort-on-container-exit --exit-code-from k6-load
+```
+
+Cenários disponíveis
+- `server/tests/k6/smoke.js` – sanity (baixa carga)
+- `server/tests/k6/read-heavy.js` – leitura intensiva (GET /contacts)
+- `server/tests/k6/write-heavy.js` – escrita intensiva (POST/DELETE /contacts)
+- `server/tests/k6/load-mix.js` – mix realista (GET/POST/DELETE)
+- `server/tests/k6/stress.js` – rampa progressiva até degradação
+- `server/tests/k6/spike.js` – pico abrupto e recuperação
+
+Alternativa (scripts NPM na pasta server)
+```bash
+cd server
+npm run perf:k6:smoke
+npm run perf:k6:read
+npm run perf:k6:write
+npm run perf:k6:load
+npm run perf:k6:stress
+npm run perf:k6:spike
+```

@@ -7,6 +7,7 @@ dist/
 **/dist/
 **/test-results/
 **/playwright-report/
+**/tests/k6/results/
 
 # Evitar reservar nomes do Windows
 NUL
