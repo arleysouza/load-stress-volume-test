@@ -73,7 +73,133 @@ services:
     # Usa variável de ambiente K6_SCRIPT para escolher o cenário (default: load-mix.js)
     entrypoint: ["sh", "-lc"]
     command: ["k6 run --summary-export=/results/summary.json /scripts/${K6_SCRIPT:-load-mix.js}"]
+    profiles: ["manual"]
 
+  # K6 jobs por cenário com saída por pasta
+  k6-load-mix:
+    image: grafana/k6:latest
+    container_name: k6-load-mix
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/load-mix:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/load-mix.js"]
+    profiles: ["load"]
+
+  k6-smoke:
+    image: grafana/k6:latest
+    container_name: k6-smoke
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/smoke:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/smoke.js"]
+    profiles: ["smoke"]
+
+  k6-spike:
+    image: grafana/k6:latest
+    container_name: k6-spike
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/spike:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/spike.js"]
+    profiles: ["spike"]
+
+  k6-stress:
+    image: grafana/k6:latest
+    container_name: k6-stress
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/stress:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/stress.js"]
+    profiles: ["stress"]
+
+  k6-read-heavy:
+    image: grafana/k6:latest
+    container_name: k6-read-heavy
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/read-heavy:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/read-heavy.js"]
+    profiles: ["read"]
+
+  k6-write-heavy:
+    image: grafana/k6:latest
+    container_name: k6-write-heavy
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/write-heavy:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/write-heavy.js"]
+    profiles: ["write"]
+
+  k6-volume:
+    image: grafana/k6:latest
+    container_name: k6-volume
+    depends_on:
+      node-k6:
+        condition: service_healthy
+    environment:
+      - API_BASE_URL=http://node-k6:3000
+      # Parametrização do volume test (ajuste conforme necessário)
+      - RATE=50           # req/s alvo
+      - DURATION=1h       # duração total
+      - PREALLOCATED_VUS=100
+      - MAX_VUS=500
+      - WRITE_RATIO=0.7   # fração de POSTs para crescer volume
+    networks:
+      - k6-network
+    volumes:
+      - ./server/tests/k6:/scripts:ro
+      - ./server/tests/k6/results/volume:/results
+    entrypoint: ["sh", "-lc"]
+    command: ["k6 run --summary-export=/results/summary.json /scripts/volume.js"]
+    profiles: ["volume"]
 networks:
   k6-network:
     driver: bridge

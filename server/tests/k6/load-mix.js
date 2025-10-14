@@ -11,7 +11,20 @@ export const options = {
     { duration: "2m", target: 0 },
   ],
   thresholds: {
-    http_req_failed: ["rate<0.01"],
+    // Falhas inesperadas (expected_response:false)
+    "http_req_failed{expected_response:false}": ["rate==0"],
+    // Por fase
+    "http_req_failed{phase:setup,expected_response:false}": ["rate==0"],
+    "http_req_failed{phase:fallback,expected_response:false}": ["rate==0"],
+    "http_req_failed{phase:main,expected_response:false}": ["rate==0"],
+    // Por endpoint nas rotas principais
+    "http_req_failed{endpoint:GET_CONTACTS,phase:main,expected_response:false}": ["rate==0"],
+    "http_req_failed{endpoint:POST_CONTACT,phase:main,expected_response:false}": ["rate==0"],
+    "http_req_failed{endpoint:DELETE_CONTACT,phase:main,expected_response:false}": ["rate==0"],
+    // Fallback específico
+    "http_req_failed{endpoint:POST_LOGIN,phase:fallback,expected_response:false}": ["rate==0"],
+    "http_req_failed{endpoint:POST_USERS,phase:fallback,expected_response:false}": ["rate==0"],
+    // Duração por endpoint (como antes)
     "http_req_duration{endpoint:GET_CONTACTS}": ["p(95)<300"],
     "http_req_duration{endpoint:POST_CONTACT}": ["p(95)<500"],
     "http_req_duration{endpoint:DELETE_CONTACT}": ["p(95)<500"],
@@ -27,13 +40,13 @@ export function setup() {
 
   let res = http.post(`${API}/users`, JSON.stringify({ username, password }), {
     headers: { "Content-Type": "application/json" },
-    tags: { endpoint: "POST_USERS" },
+    tags: { endpoint: "POST_USERS", phase: "setup" },
   });
   check(res, { "register 201": (r) => r.status === 201 });
 
   res = http.post(`${API}/users/login`, JSON.stringify({ username, password }), {
     headers: { "Content-Type": "application/json" },
-    tags: { endpoint: "POST_LOGIN" },
+    tags: { endpoint: "POST_LOGIN", phase: "setup" },
   });
   check(res, { "login 200": (r) => r.status === 200 });
 
@@ -66,12 +79,13 @@ export default function (data) {
     http.post(`${API}/users`, JSON.stringify({ username, password }), {
       headers: { "Content-Type": "application/json" },
       // Registrar pode retornar 201 ou 400 (duplicado) em corridas: não contar como falha de carga
-      tags: { endpoint: "POST_USERS", expected_response: "true" },
+      tags: { endpoint: "POST_USERS", phase: "fallback", expected_response: "true" },
     });
     const login = http.post(`${API}/users/login`, JSON.stringify({ username, password }), {
       headers: { "Content-Type": "application/json" },
-      tags: { endpoint: "POST_LOGIN" },
+      tags: { endpoint: "POST_LOGIN", phase: "fallback" },
     });
+    check(login, { "fallback login 200": (r) => r.status === 200 });
     if (login.status === 200) {
       token = login.json("data.token");
     }
@@ -96,7 +110,7 @@ export default function (data) {
     group("List contacts", () => {
       const res = http.get(`${API}/contacts`, {
         headers: auth,
-        tags: { endpoint: "GET_CONTACTS" },
+        tags: { endpoint: "GET_CONTACTS", phase: "main" },
       });
       check(res, {
         "list 200": (r) => r.status === 200,
@@ -108,7 +122,7 @@ export default function (data) {
       const body = JSON.stringify({ name: `teste_${Date.now()}`, phone: randPhone() });
       const res = http.post(`${API}/contacts`, body, {
         headers: { ...auth, "Content-Type": "application/json" },
-        tags: { endpoint: "POST_CONTACT" },
+        tags: { endpoint: "POST_CONTACT", phase: "main" },
       });
       check(res, {
         "create 201": (r) => r.status === 201,
@@ -119,7 +133,7 @@ export default function (data) {
         const del = http.del(`${API}/contacts/${id}`, null, {
           headers: auth,
           // Deletar logo após criar deve ser 200; mas se houver corrida, 404 é aceitável
-          tags: { endpoint: "DELETE_CONTACT", expected_response: "true" },
+          tags: { endpoint: "DELETE_CONTACT", phase: "main", expected_response: "true" },
         });
         check(del, { "delete 200/404": (r) => r.status === 200 || r.status === 404 });
       }
@@ -128,7 +142,7 @@ export default function (data) {
     group("Delete contact", () => {
       const list = http.get(`${API}/contacts`, {
         headers: auth,
-        tags: { endpoint: "GET_CONTACTS" },
+        tags: { endpoint: "GET_CONTACTS", phase: "main" },
       });
       const contacts = list.json("data.contacts") || [];
       if (contacts.length > 0) {
@@ -136,7 +150,7 @@ export default function (data) {
         const del = http.del(`${API}/contacts/${id}`, null, {
           headers: auth,
           // Em alta concorrência, outro VU pode ter removido; 404 é esperado
-          tags: { endpoint: "DELETE_CONTACT", expected_response: "true" },
+          tags: { endpoint: "DELETE_CONTACT", phase: "main", expected_response: "true" },
         });
         check(del, { "delete 200/404": (r) => r.status === 200 || r.status === 404 });
       }
